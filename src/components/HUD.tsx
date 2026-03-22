@@ -1,13 +1,22 @@
 import { EffectMode, EFFECT_MODES } from '@/lib/constants';
+import { Gesture } from '@/lib/gestureDetection';
+
+const GESTURE_LABELS: Record<Gesture, { label: string; icon: string }> = {
+  none: { label: '—', icon: '' },
+  pinch: { label: 'PINCH', icon: '🤏' },
+  open_palm: { label: 'OPEN PALM', icon: '🖐' },
+  fist: { label: 'FIST', icon: '✊' },
+};
 
 interface Props {
   hands: number;
   fps: number;
   mode: EffectMode;
+  gestures: Gesture[];
   onModeChange: (m: EffectMode) => void;
 }
 
-export default function HUD({ hands, fps, mode, onModeChange }: Props) {
+export default function HUD({ hands, fps, mode, gestures, onModeChange }: Props) {
   return (
     <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
       {/* Top center title */}
@@ -27,7 +36,21 @@ export default function HUD({ hands, fps, mode, onModeChange }: Props) {
         <div className="text-holo-dim">
           MODE <span className="text-holo">{EFFECT_MODES.find(m => m.id === mode)?.name}</span>
         </div>
+        {gestures.map((g, i) => g !== 'none' && (
+          <div key={i} className="text-holo-dim">
+            HAND {i + 1} <span className="text-holo">{GESTURE_LABELS[g].icon} {GESTURE_LABELS[g].label}</span>
+          </div>
+        ))}
       </div>
+
+      {/* Gesture badge — center top when active */}
+      {gestures.some(g => g !== 'none') && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2">
+          <div className="holo-gesture-badge font-heading text-sm tracking-[3px]">
+            {gestures.filter(g => g !== 'none').map(g => `${GESTURE_LABELS[g].icon} ${GESTURE_LABELS[g].label}`).join(' • ')}
+          </div>
+        </div>
+      )}
 
       {/* No hands hint */}
       {hands === 0 && (

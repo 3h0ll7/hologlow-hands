@@ -1,6 +1,7 @@
 import { useRef, useCallback, useState } from 'react';
 import { HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import { FINGERTIP_INDICES, PALM_INDEX, HandData } from '@/lib/constants';
+import { detectGesture } from '@/lib/gestureDetection';
 
 export function useHandTracking() {
   const landmarkerRef = useRef<HandLandmarker | null>(null);
@@ -56,11 +57,13 @@ export function useHandTracking() {
         (a, l) => ({ x: a.x + l.x * w, y: a.y + l.y * h }),
         { x: 0, y: 0 }
       );
+      const normalizedLms = lms.map(l => ({ x: l.x, y: l.y, z: l.z }));
       return {
-        landmarks: lms.map(l => ({ x: l.x, y: l.y, z: l.z })),
+        landmarks: normalizedLms,
         center: { x: avg.x / 21, y: avg.y / 21 },
         fingertips: FINGERTIP_INDICES.map(i => ({ x: lms[i].x * w, y: lms[i].y * h })),
         palmCenter: { x: lms[PALM_INDEX].x * w, y: lms[PALM_INDEX].y * h },
+        gesture: detectGesture(normalizedLms),
       };
     });
   }, []);

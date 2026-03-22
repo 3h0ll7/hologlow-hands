@@ -43,4 +43,5 @@ export interface HandData {
   center: { x: number; y: number };
   fingertips: { x: number; y: number }[];
   palmCenter: { x: number; y: number };
+  gesture: import('./gestureDetection').Gesture;
 }
