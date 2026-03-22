@@ -86,6 +86,7 @@ export default function HoloCanvas({ mode, onStats }: Props) {
         // Gesture effects overlay
         const gestureList = hands.map(h => h.gesture);
         renderGestureEffects(fxCtx, hands, gestureList, t, emit);
+      }
 
       // Particles
       update();
