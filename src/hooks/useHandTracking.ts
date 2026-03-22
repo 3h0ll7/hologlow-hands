@@ -1,6 +1,7 @@
 import { useRef, useCallback, useState } from 'react';
 import { HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import { FINGERTIP_INDICES, PALM_INDEX, HandData } from '@/lib/constants';
+import { detectGesture } from '@/lib/gestureDetection';
 
 export function useHandTracking() {
   const landmarkerRef = useRef<HandLandmarker | null>(null);
