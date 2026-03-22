@@ -99,7 +99,7 @@ export default function HoloCanvas({ mode, onStats }: Props) {
         fpsRef.current.count = 0;
         fpsRef.current.last = now;
       }
-      onStats(hands.length, fpsRef.current.value);
+      onStats(hands.length, fpsRef.current.value, hands.map(h => h.gesture));
 
       frameRef.current = requestAnimationFrame(loop);
     };
