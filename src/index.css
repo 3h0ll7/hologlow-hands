@@ -171,6 +171,11 @@
   to { transform: rotate(360deg); }
 }
 
+@keyframes gesture-pop {
+  from { transform: scale(0.85); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
 @keyframes holo-pulse {
   0%, 100% {
     text-shadow:
