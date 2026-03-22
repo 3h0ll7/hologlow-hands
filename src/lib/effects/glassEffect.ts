@@ -3,24 +3,24 @@ import { drawGlassBeam, drawGlassHexagon } from '../glassRenderer';
 
 export function renderGlass(ctx: CanvasRenderingContext2D, hands: HandData[], time: number) {
   hands.forEach((hand, handIndex) => {
-    for (let i = 0; i < 6; i += 1) {
-      const angle = time * 0.8 + (i / 6) * Math.PI * 2;
-      const radius = 70 + i * 12;
+    for (let panel = 0; panel < 6; panel += 1) {
+      const angle = time * 0.5 + (panel / 6) * Math.PI * 2;
+      const radius = 70 + panel * 24;
       const x = hand.center.x + Math.cos(angle) * radius;
-      const y = hand.center.y + Math.sin(angle) * (radius * 0.6);
-      const nearFinger = hand.fingertips.some(tip => Math.hypot(tip.x - x, tip.y - y) < 80);
-      drawGlassHexagon(ctx, x, y, 24 + i * 4, (handIndex * 140 + i * 50 + time * 40) % 360, angle * 0.4, nearFinger ? 1.5 : 1);
-      drawGlassBeam(ctx, hand.center, { x, y }, (i * 50 + time * 30) % 360, 5 + i * 0.5);
+      const y = hand.center.y + Math.sin(angle) * (radius * 0.7);
+      drawGlassHexagon(ctx, x, y, 50, (handIndex * 120 + panel * 45 + time * 55) % 360, angle * 0.5, 1.15);
+      drawGlassBeam(ctx, hand.center, { x, y }, (panel * 55 + time * 40) % 360, 4);
     }
   });
 
   if (hands.length === 2) {
-    const [a, b] = hands;
-    for (let i = 0; i < 5; i += 1) {
-      const t = (i + 1) / 6;
-      const x = a.center.x + (b.center.x - a.center.x) * t;
-      const y = a.center.y + (b.center.y - a.center.y) * t + Math.sin(time * 3 + i) * 18;
-      drawGlassHexagon(ctx, x, y, 22, (time * 90 + i * 36) % 360, time + i, 1.4);
+    const [leftHand, rightHand] = hands;
+    for (let segment = 0; segment < 5; segment += 1) {
+      const t = (segment + 1) / 6;
+      const x = leftHand.center.x + (rightHand.center.x - leftHand.center.x) * t;
+      const y = leftHand.center.y + (rightHand.center.y - leftHand.center.y) * t;
+      drawGlassHexagon(ctx, x, y, 28, (time * 80 + segment * 36) % 360, time * 0.3 + segment * 0.2, 1.35);
     }
+    drawGlassBeam(ctx, leftHand.center, rightHand.center, (time * 90) % 360, 10);
   }
 }
