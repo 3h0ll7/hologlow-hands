@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { EffectMode, EFFECT_MODES, HandData } from '@/lib/constants';
+import { Gesture } from '@/lib/gestureDetection';
 import { drawSkeleton, drawParticles } from '@/lib/drawingUtils';
 import { renderPrism } from '@/lib/effects/prismEffect';
 import { renderHexGrid } from '@/lib/effects/hexGridEffect';
@@ -7,12 +8,13 @@ import { renderHoloRing } from '@/lib/effects/holoRingEffect';
 import { renderMatrix } from '@/lib/effects/matrixEffect';
 import { renderEnergy } from '@/lib/effects/energyEffect';
 import { renderVortex } from '@/lib/effects/vortexEffect';
+import { renderGestureEffects } from '@/lib/effects/gestureEffects';
 import { useHandTracking } from '@/hooks/useHandTracking';
 import { useParticles } from '@/hooks/useParticles';
 
 interface Props {
   mode: EffectMode;
-  onStats: (hands: number, fps: number) => void;
+  onStats: (hands: number, fps: number, gestures: Gesture[]) => void;
 }
 
 export default function HoloCanvas({ mode, onStats }: Props) {
