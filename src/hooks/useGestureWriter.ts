@@ -1,12 +1,13 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { DRAW_COLORS, DRAW_STYLES, DrawStyle, GESTURE_THRESHOLDS, HandData } from '@/lib/constants';
-import { appendPoint, beginStroke, recognizeStrokeShape, Stroke } from '@/lib/gestureWriter';
+import { appendPoint, beginStroke, Stroke } from '@/lib/gestureWriter';
 
 const gestureCooldownMs = 700;
 
 export function useGestureWriter() {
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [activeStroke, setActiveStroke] = useState<Stroke | null>(null);
+  const activeStrokeRef = useRef<Stroke | null>(null);
   const [colorIndex, setColorIndex] = useState(0);
   const [styleIndex, setStyleIndex] = useState(0);
   const [status, setStatus] = useState<'DRAWING...' | 'PAUSED'>('PAUSED');
@@ -24,7 +25,16 @@ export function useGestureWriter() {
     return true;
   };
 
+  const finalizeActiveStroke = useCallback(() => {
+    const stroke = activeStrokeRef.current;
+    if (!stroke || stroke.points.length < 2) return;
+    setStrokes(prev => [...prev, { ...stroke, alpha: 1 }]);
+    activeStrokeRef.current = null;
+    setActiveStroke(null);
+  }, []);
+
   const clear = useCallback(() => {
+    activeStrokeRef.current = null;
     setStrokes([]);
     setActiveStroke(null);
   }, []);
@@ -44,54 +54,51 @@ export function useGestureWriter() {
   const updateFromHands = useCallback((hands: HandData[], drawEnabled: boolean) => {
     const hand = hands[0];
     if (!hand || !drawEnabled) {
-      if (activeStroke) {
-        setStrokes(prev => [...prev, { ...activeStroke, alpha: 1 }]);
-        setActiveStroke(null);
-      }
+      finalizeActiveStroke();
       setStatus('PAUSED');
+      clearTimerRef.current = null;
       return;
     }
 
     const indexTip = hand.fingertips[1];
-    const drawingActive = hand.gesture === 'pinch' || hand.gesture === 'point';
-    const pressure = Math.max(0.25, 1 - Math.min(hand.pinchDistance, GESTURE_THRESHOLDS.pinchPx) / GESTURE_THRESHOLDS.pinchPx);
+    const drawingActive = hand.pinchDistance < GESTURE_THRESHOLDS.pinchPx;
+    const pressure = Math.max(0.3, 1 - Math.min(hand.pinchDistance, GESTURE_THRESHOLDS.pinchPx * 2) / (GESTURE_THRESHOLDS.pinchPx * 2));
     const point = { x: indexTip.x, y: indexTip.y, timestamp: performance.now(), pressure };
 
     if (hand.gesture === 'fist') {
       if (!clearTimerRef.current) clearTimerRef.current = performance.now();
       if (performance.now() - clearTimerRef.current >= GESTURE_THRESHOLDS.clearHoldMs) {
         clear();
+        clearTimerRef.current = null;
       }
     } else {
       clearTimerRef.current = null;
     }
 
     if (hand.gesture === 'peace' && canTrigger('peace')) cycleColor();
-    if (hand.gesture === 'thumbs_down' && canTrigger('thumbs_down')) undo();
 
     if (!drawingActive) {
-      if (activeStroke) {
-        const shape = recognizeStrokeShape(activeStroke.points);
-        setStrokes(prev => [...prev, { ...activeStroke, style: shape === 'line' ? 'HOLOGRAM' : activeStroke.style }]);
-        setActiveStroke(null);
-      }
+      finalizeActiveStroke();
       setStatus('PAUSED');
       return;
     }
 
     setStatus('DRAWING...');
-    setActiveStroke(prev => {
-      if (!prev) return beginStroke(color, 4 + pressure * 10, style, point);
-      const clone = { ...prev, points: [...prev.points], width: 4 + pressure * 10, color, style };
-      appendPoint(clone, point);
+    setActiveStroke(previousState => {
+      const stroke = previousState ?? beginStroke(color, 6, style, point);
+      const clone = previousState
+        ? { ...stroke, points: [...stroke.points], smoothedPoints: [...stroke.smoothedPoints], color, style, width: 6 }
+        : stroke;
+      if (previousState) appendPoint(clone, point);
+      activeStrokeRef.current = clone;
       return clone;
     });
-  }, [activeStroke, clear, color, cycleColor, style, undo]);
+  }, [clear, color, cycleColor, finalizeActiveStroke, style]);
 
-  const fadedStrokes = useMemo(() => strokes.map((stroke, index) => ({ ...stroke, alpha: Math.max(0.18, 1 - index * 0.04) })), [strokes]);
+  const settledStrokes = useMemo(() => strokes.map((stroke, index) => ({ ...stroke, alpha: Math.max(0.24, 1 - index * 0.03) })), [strokes]);
 
   return {
-    strokes: fadedStrokes,
+    strokes: settledStrokes,
     activeStroke,
     color,
     style,

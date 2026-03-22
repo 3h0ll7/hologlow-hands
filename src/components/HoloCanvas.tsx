@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { EffectMode, HandData } from '@/lib/constants';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { EffectMode } from '@/lib/constants';
 import { GestureName } from '@/lib/gestureClassifier';
 import { drawParticles, drawSkeleton } from '@/lib/drawingUtils';
 import { renderPrism } from '@/lib/effects/prismEffect';
@@ -14,8 +14,7 @@ import { renderRibbonEffect } from '@/lib/effects/ribbonEffect';
 import { useHandTracking } from '@/hooks/useHandTracking';
 import { useParticles } from '@/hooks/useParticles';
 import { useGestureWriter } from '@/hooks/useGestureWriter';
-import { updateRibbonHistory, RibbonSample } from '@/lib/ribbonGeometry';
-import { useAudioReactive } from '@/hooks/useAudioReactive';
+import { dissolveRibbonHistory, RibbonSample, updateRibbonHistory } from '@/lib/ribbonGeometry';
 import { detectTwoHandGesture } from '@/lib/twoHandGestures';
 import DrawingCanvas from './DrawingCanvas';
 import { saveScreenshot } from '@/lib/captureUtils';
@@ -35,23 +34,28 @@ interface Props {
   onStats: (stats: StatsPayload) => void;
 }
 
+const TRANSITION_MS = 300;
+const SCREENSHOT_COOLDOWN_MS = 1200;
+
 export default function HoloCanvas({ mode, onStats }: Props) {
   const skelRef = useRef<HTMLCanvasElement>(null);
   const fxRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef<HTMLCanvasElement>(null);
   const ribbonRef = useRef<Map<string, RibbonSample[]>>(new Map());
   const prevTwoHandDistanceRef = useRef(0);
-  const { init, detect, ready, videoRef } = useHandTracking();
+  const previousModeRef = useRef<EffectMode | null>(null);
+  const currentModeRef = useRef<EffectMode>(mode);
+  const screenshotCooldownRef = useRef(0);
+  const { init, detect, ready } = useHandTracking();
   const { particles, emit, update } = useParticles();
-  const { strokes, activeStroke, updateFromHands, status, color, style, clear, undo, cycleColor, cycleStyle } = useGestureWriter();
-  const { levels, sample } = useAudioReactive(mode === 'audio');
+  const { strokes, activeStroke, updateFromHands, status, color, clear, undo, cycleColor } = useGestureWriter();
   const videoElRef = useRef<HTMLVideoElement>(null);
   const frameRef = useRef(0);
   const fpsRef = useRef({ count: 0, last: performance.now(), value: 0 });
   const timeRef = useRef(0);
   const [started, setStarted] = useState(false);
-
-  const drawEnabled = useMemo(() => mode === 'draw' || mode === 'audio' || mode === 'ribbon', [mode]);
+  const [transitionStart, setTransitionStart] = useState<number | null>(null);
+  const [flashVisible, setFlashVisible] = useState(false);
 
   const start = useCallback(async () => {
     if (videoElRef.current) {
@@ -60,34 +64,79 @@ export default function HoloCanvas({ mode, onStats }: Props) {
     }
   }, [init]);
 
+  const triggerCapture = useCallback(async () => {
+    const now = performance.now();
+    if (now - screenshotCooldownRef.current < SCREENSHOT_COOLDOWN_MS) return;
+    screenshotCooldownRef.current = now;
+    await saveScreenshot([skelRef.current, fxRef.current, drawingRef.current], videoElRef.current);
+  }, []);
+
   useEffect(() => {
     (window as Window & typeof globalThis & { __holoStart?: () => Promise<void> }).__holoStart = start;
-    return () => { delete (window as Window & typeof globalThis & { __holoStart?: () => Promise<void> }).__holoStart; };
+    return () => {
+      delete (window as Window & typeof globalThis & { __holoStart?: () => Promise<void> }).__holoStart;
+    };
   }, [start]);
 
   useEffect(() => {
-    const onCapture = () => saveScreenshot([skelRef.current, fxRef.current, drawingRef.current], videoElRef.current);
+    const onCapture = () => { void triggerCapture(); };
     const onClear = () => clear();
     const onUndo = () => undo();
     const onColor = () => cycleColor();
-    const onStyle = () => cycleStyle();
+    const onFlash = () => {
+      setFlashVisible(true);
+      window.setTimeout(() => setFlashVisible(false), 300);
+    };
+
     window.addEventListener('holo:capture', onCapture);
     window.addEventListener('holo:clear', onClear);
     window.addEventListener('holo:undo', onUndo);
     window.addEventListener('holo:color', onColor);
-    window.addEventListener('holo:style', onStyle);
+    window.addEventListener('holo:flash', onFlash);
     return () => {
       window.removeEventListener('holo:capture', onCapture);
       window.removeEventListener('holo:clear', onClear);
       window.removeEventListener('holo:undo', onUndo);
       window.removeEventListener('holo:color', onColor);
-      window.removeEventListener('holo:style', onStyle);
+      window.removeEventListener('holo:flash', onFlash);
     };
-  }, [clear, cycleColor, cycleStyle, undo]);
+  }, [clear, cycleColor, triggerCapture, undo]);
+
+  useEffect(() => {
+    if (mode !== currentModeRef.current) {
+      previousModeRef.current = currentModeRef.current;
+      currentModeRef.current = mode;
+      setTransitionStart(performance.now());
+    }
+  }, [mode]);
 
   useEffect(() => {
     if (!ready || !started) return;
     let running = true;
+
+    const renderMode = (
+      ctx: CanvasRenderingContext2D,
+      renderModeValue: EffectMode,
+      hands: ReturnType<typeof detect>,
+      time: number,
+      alpha: number
+    ) => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      const effectMap: Record<EffectMode, () => void> = {
+        prism: () => renderPrism(ctx, hands, time, emit),
+        hex: () => renderHexGrid(ctx, hands, time),
+        ring: () => renderHoloRing(ctx, hands, time),
+        matrix: () => renderMatrix(ctx, hands, time),
+        energy: () => renderEnergy(ctx, hands, time, emit),
+        vortex: () => renderVortex(ctx, hands, time, emit),
+        glass: () => renderGlass(ctx, hands, time),
+        ribbon: () => renderRibbonEffect(ctx, ribbonRef.current, hands, time),
+        draw: () => renderGlass(ctx, hands, time),
+      };
+      effectMap[renderModeValue]();
+      ctx.restore();
+    };
 
     const loop = () => {
       if (!running) return;
@@ -98,62 +147,69 @@ export default function HoloCanvas({ mode, onStats }: Props) {
         return;
       }
 
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      if (skel.width !== w || skel.height !== h) {
-        skel.width = w;
-        skel.height = h;
-        fx.width = w;
-        fx.height = h;
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      if (skel.width !== width || skel.height !== height) {
+        skel.width = width;
+        skel.height = height;
+        fx.width = width;
+        fx.height = height;
       }
 
-      const skelCtx = skel.getContext('2d', { alpha: true, desynchronized: true })!;
-      const fxCtx = fx.getContext('2d', { alpha: true, desynchronized: true })!;
-      skelCtx.clearRect(0, 0, w, h);
-      fxCtx.clearRect(0, 0, w, h);
+      const skelCtx = skel.getContext('2d', { alpha: true, desynchronized: true });
+      const fxCtx = fx.getContext('2d', { alpha: true, desynchronized: true });
+      if (!skelCtx || !fxCtx) {
+        frameRef.current = requestAnimationFrame(loop);
+        return;
+      }
+
+      skelCtx.clearRect(0, 0, width, height);
+      fxCtx.clearRect(0, 0, width, height);
 
       timeRef.current = performance.now() / 1000;
-      const t = timeRef.current;
-      const hands = detect(w, h, fpsRef.current.value || 30);
-      const audio = mode === 'audio' ? sample() : levels;
+      const time = timeRef.current;
+      const hands = detect(width, height, fpsRef.current.value || 30);
 
       hands.forEach((hand, handIndex) => {
-        drawSkeleton(skelCtx, hand.landmarks, w, h, mode === 'draw' && handIndex === 0);
+        drawSkeleton(skelCtx, hand.landmarks, width, height, mode === 'draw' && handIndex === 0);
         hand.fingertips.forEach((tip, fingerIndex) => {
           const key = `${handIndex}:${fingerIndex}`;
-          if (hand.velocity > 5) {
-            updateRibbonHistory(ribbonRef.current.get(key) ?? ribbonRef.current.set(key, []).get(key)!, { x: tip.x, y: tip.y, timestamp: performance.now() });
+          const history = ribbonRef.current.get(key) ?? [];
+          const previousTip = history[history.length - 1];
+          const fingertipVelocity = previousTip ? Math.hypot(tip.x - previousTip.x, tip.y - previousTip.y) : hand.velocity;
+
+          if (fingertipVelocity > 5) {
+            updateRibbonHistory(history, { x: tip.x, y: tip.y, timestamp: performance.now(), alpha: 0.8 });
+            ribbonRef.current.set(key, history);
+          } else {
+            dissolveRibbonHistory(history);
+            if (history.length) ribbonRef.current.set(key, history);
           }
         });
       });
 
-      updateFromHands(hands, drawEnabled || mode === 'draw');
+      updateFromHands(hands, mode === 'draw');
+
+      const transitionProgress = transitionStart ? Math.min(1, (performance.now() - transitionStart) / TRANSITION_MS) : 1;
+      const previousAlpha = transitionStart && transitionProgress < 1 ? 1 - transitionProgress : 0;
+      const nextAlpha = transitionStart && transitionProgress < 1 ? transitionProgress : 1;
 
       if (hands.length > 0) {
-        const effectMap: Record<EffectMode, () => void> = {
-          prism: () => renderPrism(fxCtx, hands, t, emit),
-          hex: () => renderHexGrid(fxCtx, hands, t),
-          ring: () => renderHoloRing(fxCtx, hands, t),
-          matrix: () => renderMatrix(fxCtx, hands, t),
-          energy: () => renderEnergy(fxCtx, hands, t, emit),
-          vortex: () => renderVortex(fxCtx, hands, t, emit),
-          glass: () => renderGlass(fxCtx, hands, t),
-          ribbon: () => renderRibbonEffect(fxCtx, ribbonRef.current, hands, t),
-          draw: () => renderGlass(fxCtx, hands, t),
-          audio: () => {
-            fxCtx.save();
-            fxCtx.globalAlpha = 0.8 + audio.bass * 0.2;
-            renderGlass(fxCtx, hands, t + audio.mids * 2);
-            renderRibbonEffect(fxCtx, ribbonRef.current, hands, t + audio.highs * 2);
-            fxCtx.restore();
-          },
-        };
-        effectMap[mode]();
-        renderGestureEffects(fxCtx, hands, hands.map(h => h.gesture), t, emit);
+        if (previousAlpha > 0 && previousModeRef.current) {
+          renderMode(fxCtx, previousModeRef.current, hands, time, previousAlpha);
+        }
+        renderMode(fxCtx, mode, hands, time, nextAlpha);
+        renderGestureEffects(fxCtx, hands, hands.map(hand => hand.gesture), time, emit);
+      }
+
+      if (transitionStart && transitionProgress >= 1) {
+        previousModeRef.current = null;
+        setTransitionStart(null);
       }
 
       const twoHandGesture = detectTwoHandGesture(hands, prevTwoHandDistanceRef.current);
       prevTwoHandDistanceRef.current = twoHandGesture.distance;
+
       if (twoHandGesture.gesture === 'portal') {
         fxCtx.save();
         fxCtx.strokeStyle = 'rgba(255,255,255,0.6)';
@@ -165,7 +221,11 @@ export default function HoloCanvas({ mode, onStats }: Props) {
       }
 
       if (mode !== 'ribbon') {
-        renderRibbonEffect(fxCtx, ribbonRef.current, hands, t);
+        renderRibbonEffect(fxCtx, ribbonRef.current, hands, time);
+      }
+
+      if (hands.some(hand => hand.gesture === 'thumbs_up')) {
+        void triggerCapture();
       }
 
       update();
@@ -182,11 +242,11 @@ export default function HoloCanvas({ mode, onStats }: Props) {
       onStats({
         hands: hands.length,
         fps: fpsRef.current.value,
-        gestures: hands.map(h => h.gesture),
-        handLabels: hands.map(h => h.hand.toUpperCase()),
+        gestures: hands.map(hand => hand.gesture),
+        handLabels: hands.map(hand => hand.hand.toUpperCase()),
         drawStatus: status,
         twoHandGesture: twoHandGesture.gesture.toUpperCase(),
-        audioLevel: Number(((audio.bass + audio.mids + audio.highs) / 3).toFixed(2)),
+        audioLevel: 0,
       });
 
       frameRef.current = requestAnimationFrame(loop);
@@ -197,25 +257,32 @@ export default function HoloCanvas({ mode, onStats }: Props) {
       running = false;
       cancelAnimationFrame(frameRef.current);
     };
-  }, [ready, started, mode, detect, emit, update, particles, onStats, updateFromHands, drawEnabled, sample, levels, status]);
+  }, [ready, started, mode, detect, emit, onStats, particles, status, transitionStart, triggerCapture, update, updateFromHands]);
 
   return (
     <>
       <video
         ref={videoElRef}
-        className="absolute inset-0 w-full h-full object-cover holo-video"
+        className="absolute inset-0 h-full w-full object-cover holo-video"
         playsInline
         muted
       />
-      <canvas ref={skelRef} className="absolute inset-0 w-full h-full holo-canvas will-change-transform" style={{ zIndex: 2 }} />
-      <canvas ref={fxRef} className="absolute inset-0 w-full h-full holo-canvas will-change-transform" style={{ zIndex: 3 }} />
+      <canvas ref={skelRef} className="absolute inset-0 h-full w-full holo-canvas will-change-transform" style={{ zIndex: 2 }} />
+      <canvas ref={fxRef} className="absolute inset-0 h-full w-full holo-canvas will-change-transform" style={{ zIndex: 3 }} />
       <DrawingCanvas ref={drawingRef} width={window.innerWidth} height={window.innerHeight} strokes={strokes} activeStroke={activeStroke} />
       {mode === 'draw' && (
-        <div className="absolute top-24 right-4 z-20 pointer-events-auto rounded-xl border border-cyan-400/30 bg-black/35 p-3 text-xs text-cyan-100 backdrop-blur-md">
-          <div>COLOR <span className="ml-2 inline-block h-3 w-3 rounded-full align-middle" style={{ backgroundColor: color }} /></div>
-          <div className="mt-1">STYLE <span className="text-white/80">{style}</span></div>
+        <div className="absolute right-4 top-24 z-20 rounded-xl border border-cyan-400/30 bg-black/35 p-3 text-xs text-cyan-100 backdrop-blur-md">
+          <div>
+            COLOR
+            <span className="ml-2 inline-block h-3 w-3 rounded-full align-middle" style={{ backgroundColor: color }} />
+          </div>
+          <div className="mt-1">PINCH TO DRAW • PEACE TO SHIFT • HOLD FIST TO CLEAR</div>
         </div>
       )}
+      <div
+        className={`pointer-events-none absolute inset-0 bg-white transition-opacity duration-300 ${flashVisible ? 'opacity-80' : 'opacity-0'}`}
+        style={{ zIndex: 40 }}
+      />
     </>
   );
 }

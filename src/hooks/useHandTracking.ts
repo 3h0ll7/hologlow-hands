@@ -5,15 +5,89 @@ import { classifyGesture, GestureName } from '@/lib/gestureClassifier';
 
 const EMA_ALPHA = 0.6;
 
+type StableState = { candidate: GestureName; count: number; stable: GestureName };
+
+function smoothLandmarks(previous: Landmark[] | undefined, next: Landmark[]) {
+  if (!previous) return next;
+  return next.map((landmark, index) => ({
+    x: landmark.x * EMA_ALPHA + previous[index].x * (1 - EMA_ALPHA),
+    y: landmark.y * EMA_ALPHA + previous[index].y * (1 - EMA_ALPHA),
+    z: (landmark.z ?? 0) * EMA_ALPHA + previous[index].z * (1 - EMA_ALPHA),
+  }));
+}
+
+function toHandData(
+  landmarks: Landmark[],
+  width: number,
+  height: number,
+  handedness: 'left' | 'right',
+  stableState: StableState,
+  lastCenter: { x: number; y: number } | undefined
+): HandData {
+  const sum = landmarks.reduce((acc, point) => ({ x: acc.x + point.x * width, y: acc.y + point.y * height }), { x: 0, y: 0 });
+  const center = { x: sum.x / landmarks.length, y: sum.y / landmarks.length };
+  const gestureResult = classifyGesture(landmarks, width, height, handedness);
+
+  if (stableState.candidate === gestureResult.gesture) {
+    stableState.count += 1;
+  } else {
+    stableState.candidate = gestureResult.gesture;
+    stableState.count = 1;
+  }
+
+  if (stableState.count >= GESTURE_THRESHOLDS.stableFrames) {
+    stableState.stable = stableState.candidate;
+  }
+
+  const velocity = lastCenter ? Math.hypot(center.x - lastCenter.x, center.y - lastCenter.y) : 0;
+
+  return {
+    landmarks,
+    center,
+    fingertips: FINGERTIP_INDICES.map(index => ({ x: landmarks[index].x * width, y: landmarks[index].y * height })),
+    palmCenter: { x: landmarks[PALM_INDEX].x * width, y: landmarks[PALM_INDEX].y * height },
+    gesture: stableState.stable,
+    gestureConfidence: gestureResult.confidence,
+    hand: handedness,
+    pinchDistance: gestureResult.pinchDistance,
+    velocity,
+  };
+}
+
+function interpolateHandData(previous: HandData, next: HandData, t: number): HandData {
+  return {
+    ...next,
+    landmarks: next.landmarks.map((landmark, index) => ({
+      x: previous.landmarks[index].x + (landmark.x - previous.landmarks[index].x) * t,
+      y: previous.landmarks[index].y + (landmark.y - previous.landmarks[index].y) * t,
+      z: previous.landmarks[index].z + (landmark.z - previous.landmarks[index].z) * t,
+    })),
+    center: {
+      x: previous.center.x + (next.center.x - previous.center.x) * t,
+      y: previous.center.y + (next.center.y - previous.center.y) * t,
+    },
+    fingertips: next.fingertips.map((tip, index) => ({
+      x: previous.fingertips[index].x + (tip.x - previous.fingertips[index].x) * t,
+      y: previous.fingertips[index].y + (tip.y - previous.fingertips[index].y) * t,
+    })),
+    palmCenter: {
+      x: previous.palmCenter.x + (next.palmCenter.x - previous.palmCenter.x) * t,
+      y: previous.palmCenter.y + (next.palmCenter.y - previous.palmCenter.y) * t,
+    },
+    velocity: previous.velocity + (next.velocity - previous.velocity) * t,
+  };
+}
+
 export function useHandTracking() {
   const landmarkerRef = useRef<HandLandmarker | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const smoothedRef = useRef<Landmark[][]>([]);
-  const stableGestureRef = useRef<Array<{ candidate: GestureName; count: number; stable: GestureName }>>([]);
+  const stableGestureRef = useRef<StableState[]>([]);
   const lastCentersRef = useRef<Array<{ x: number; y: number }>>([]);
   const detectEveryRef = useRef(1);
   const frameRef = useRef(0);
-  const lastResultsRef = useRef<HandData[]>([]);
+  const previousDetectedRef = useRef<HandData[]>([]);
+  const latestDetectedRef = useRef<HandData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -58,67 +132,50 @@ export function useHandTracking() {
     }
   }, []);
 
-  const detect = useCallback((w: number, h: number, fps = 30): HandData[] => {
+  const detect = useCallback((width: number, height: number, fps = 30): HandData[] => {
     if (!landmarkerRef.current || !videoRef.current || videoRef.current.readyState < 2) return [];
 
     detectEveryRef.current = fps < 20 ? 3 : fps < 30 ? 2 : 1;
     frameRef.current += 1;
+    const shouldDetectNow = frameRef.current % detectEveryRef.current === 0 || latestDetectedRef.current.length === 0;
 
-    if (frameRef.current % detectEveryRef.current !== 0 && lastResultsRef.current.length) {
-      return lastResultsRef.current;
+    if (shouldDetectNow) {
+      const results = landmarkerRef.current.detectForVideo(videoRef.current, performance.now());
+      if (!results.landmarks?.length) {
+        previousDetectedRef.current = latestDetectedRef.current;
+        latestDetectedRef.current = [];
+        return [];
+      }
+
+      previousDetectedRef.current = latestDetectedRef.current.length ? latestDetectedRef.current : previousDetectedRef.current;
+      latestDetectedRef.current = results.landmarks.map((rawLandmarks, index) => {
+        const stableState = stableGestureRef.current[index] ?? { candidate: 'none' as GestureName, count: 0, stable: 'none' as GestureName };
+        const smoothed = smoothLandmarks(smoothedRef.current[index], rawLandmarks as Landmark[]);
+        smoothedRef.current[index] = smoothed;
+
+        const handedness = results.handednesses?.[index]?.[0]?.displayName?.toLowerCase() === 'left' ? 'left' : 'right';
+        const hand = toHandData(smoothed, width, height, handedness, stableState, lastCentersRef.current[index]);
+        stableGestureRef.current[index] = stableState;
+
+        if ((previousDetectedRef.current[index]?.gesture ?? 'none') !== hand.gesture && hand.gesture !== 'none') {
+          window.dispatchEvent(new CustomEvent('gesture', { detail: { ...hand, index } }));
+        }
+
+        lastCentersRef.current[index] = hand.center;
+        return hand;
+      });
+
+      previousDetectedRef.current = previousDetectedRef.current.length ? previousDetectedRef.current : latestDetectedRef.current;
+      return latestDetectedRef.current;
     }
 
-    const results = landmarkerRef.current.detectForVideo(videoRef.current, performance.now());
-    if (!results.landmarks?.length) {
-      lastResultsRef.current = [];
-      return [];
-    }
+    if (!latestDetectedRef.current.length) return [];
+    const t = (frameRef.current % detectEveryRef.current) / detectEveryRef.current;
 
-    const nextHands = results.landmarks.map((lms, index) => {
-      const previous = smoothedRef.current[index] ?? lms;
-      const smoothed = lms.map((lm, lmIndex) => ({
-        x: previous[lmIndex].x + (lm.x - previous[lmIndex].x) * EMA_ALPHA,
-        y: previous[lmIndex].y + (lm.y - previous[lmIndex].y) * EMA_ALPHA,
-        z: previous[lmIndex].z + ((lm.z ?? 0) - previous[lmIndex].z) * EMA_ALPHA,
-      }));
-      smoothedRef.current[index] = smoothed;
-
-      const avg = smoothed.reduce((a, l) => ({ x: a.x + l.x * w, y: a.y + l.y * h }), { x: 0, y: 0 });
-      const center = { x: avg.x / 21, y: avg.y / 21 };
-      const handedness = results.handednesses?.[index]?.[0]?.displayName?.toLowerCase() === 'left' ? 'left' : 'right';
-      const gestureResult = classifyGesture(smoothed, w, h, handedness);
-      const stableState = stableGestureRef.current[index] ?? { candidate: 'none' as GestureName, count: 0, stable: 'none' as GestureName };
-      if (stableState.candidate === gestureResult.gesture) {
-        stableState.count += 1;
-      } else {
-        stableState.candidate = gestureResult.gesture;
-        stableState.count = 1;
-      }
-      if (stableState.count >= GESTURE_THRESHOLDS.stableFrames && stableState.stable !== gestureResult.gesture) {
-        stableState.stable = gestureResult.gesture;
-        window.dispatchEvent(new CustomEvent('gesture', { detail: gestureResult }));
-      }
-      stableGestureRef.current[index] = stableState;
-
-      const previousCenter = lastCentersRef.current[index] ?? center;
-      const velocity = Math.hypot(center.x - previousCenter.x, center.y - previousCenter.y);
-      lastCentersRef.current[index] = center;
-
-      return {
-        landmarks: smoothed,
-        center,
-        fingertips: FINGERTIP_INDICES.map(i => ({ x: smoothed[i].x * w, y: smoothed[i].y * h })),
-        palmCenter: { x: smoothed[PALM_INDEX].x * w, y: smoothed[PALM_INDEX].y * h },
-        gesture: stableState.stable,
-        gestureConfidence: gestureResult.confidence,
-        hand: handedness,
-        pinchDistance: gestureResult.pinchDistance,
-        velocity,
-      } satisfies HandData;
+    return latestDetectedRef.current.map((hand, index) => {
+      const previous = previousDetectedRef.current[index];
+      return previous ? interpolateHandData(previous, hand, t) : hand;
     });
-
-    lastResultsRef.current = nextHands;
-    return nextHands;
   }, []);
 
   return { init, detect, loading, error, ready, videoRef, offscreenEnabled };

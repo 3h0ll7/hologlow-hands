@@ -27,8 +27,7 @@ export type EffectMode =
   | 'vortex'
   | 'glass'
   | 'ribbon'
-  | 'draw'
-  | 'audio';
+  | 'draw';
 
 export const EFFECT_MODES: { id: EffectMode; name: string; icon: string }[] = [
   { id: 'prism', name: 'PRISM', icon: '⬡' },
@@ -40,7 +39,6 @@ export const EFFECT_MODES: { id: EffectMode; name: string; icon: string }[] = [
   { id: 'glass', name: 'GLASS', icon: '💎' },
   { id: 'ribbon', name: 'RIBBON', icon: '🎀' },
   { id: 'draw', name: 'DRAW', icon: '✏️' },
-  { id: 'audio', name: 'AUDIO', icon: '🎵' },
 ];
 
 export const PARTICLE_POOL_SIZE = 260;
@@ -49,29 +47,25 @@ export const GESTURE_THRESHOLDS = {
   spreadPx: 200,
   clearHoldMs: 1500,
   stableFrames: 3,
+  thumbsUpVerticalLift: 0.08,
 };
 
 export const DRAW_COLORS = ['#00f0ff', '#ff4fd8', '#8b5cf6', '#22c55e', '#f59e0b'];
-export const DRAW_STYLES = ['NEON', 'HOLOGRAM', 'RIBBON', 'PARTICLE_TRAIL'] as const;
+export const DRAW_STYLES = ['NEON'] as const;
 export type DrawStyle = (typeof DRAW_STYLES)[number];
 
 export const RIBBON_CONFIG = {
-  maxHistory: 72,
-  maxWidth: 26,
-  taperPower: 0.7,
+  maxHistory: 60,
+  maxWidth: 25,
+  taperPower: 0.9,
+  minVelocity: 5,
+  dissolvePerFrame: 0.94,
 };
 
 export const GLASS_CONFIG = {
   bodyAlpha: 0.08,
   tintAlpha: 0.06,
-  shadowBlur: 8,
-};
-
-export const AUDIO_DEFAULTS = {
-  enabled: false,
-  bassScale: 0.35,
-  midHueShift: 0.18,
-  highParticleBoost: 0.2,
+  shadowBlur: 20,
 };
 
 export interface Particle {
