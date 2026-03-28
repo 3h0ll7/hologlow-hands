@@ -1,0 +1,9 @@
+title: "[Showcase] "
+body:
+  - type: textarea
+    id: showcase
+    attributes:
+      label: What did you build?
+      description: Share what you created with HoloGlow Hands
+    validations:
+      required: true
