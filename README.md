@@ -1,41 +1,53 @@
-# Welcome to your Lovable project
+<div align="center">
 
-TODO: Document your project here
-# 🖐️ HoloGlow Hands — AR Hand Hologram Generator
+# HoloGlow Hands
 
-> Transform your hands into hologram generators using AI-powered real-time hand tracking.
+### Browser-Based AR Hand Tracking with Holographic Effects
 
-[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-hologlowhands.lovable.app-00f0ff?style=for-the-badge)](https://hologlowhands.lovable.app/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)]()
-[![React](https://img.shields.io/badge/React-20232A?style=flat-square&logo=react&logoColor=61DAFB)]()
-[![MediaPipe](https://img.shields.io/badge/MediaPipe-FF6F00?style=flat-square&logo=google&logoColor=white)]()
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)]()
+[![GitHub stars](https://img.shields.io/github/stars/3h0ll7/hologlow-hands?style=social)](https://github.com/3h0ll7/hologlow-hands/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/3h0ll7/hologlow-hands?style=social)](https://github.com/3h0ll7/hologlow-hands/network)
+[![GitHub issues](https://img.shields.io/github/issues/3h0ll7/hologlow-hands)](https://github.com/3h0ll7/hologlow-hands/issues)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/3h0ll7/hologlow-hands/pulls)
+[![License](https://img.shields.io/github/license/3h0ll7/hologlow-hands)](LICENSE)
 
----
+<p align="center">
+  <strong>Real-time hand tracking with stunning holographic glow effects — right in your browser.</strong>
+</p>
 
-## ✨ What is HoloGlow Hands?
+[Live Demo](https://hologlowhands.lovable.app/) · [Report Bug](https://github.com/3h0ll7/hologlow-hands/issues) · [Request Feature](https://github.com/3h0ll7/hologlow-hands/issues)
 
-HoloGlow Hands is a browser-based augmented reality experience that uses your webcam and AI hand tracking to generate stunning holographic visual effects in real-time. No app install needed — just open the website and raise your hands.
-
-**Key highlights:**
-- 🤖 AI-powered hand tracking with 21 landmark points per hand
-- 🎨 6 unique holographic effect modes
-- ✋ Gesture recognition (Open Palm, Fist, Peace, Point, Pinch)
-- 📱 Works on mobile and desktop browsers
-- ⚡ Real-time performance (~23+ FPS)
-- 🔒 Privacy-first: all processing happens locally in your browser
+</div>
 
 ---
 
-## 🎬 Demo
+## Features
 
-🔗 **[Try it live → hologlowhands.lovable.app](https://hologlowhands.lovable.app/)**
+- **Real-time Hand Tracking** — Powered by Google MediaPipe with 21 landmark points per hand
+- **6 Holographic Effect Modes** — Prism, Hex Grid, Holo Ring, Matrix, Energy, Vortex
+- **Gesture Recognition** — Open Palm, Fist, Peace, Point, Pinch
+- **Cross-Platform** — Works on desktop and mobile browsers
+- **Camera-Based** — No special hardware needed
+- **Privacy-First** — All processing happens locally in your browser
+- **Lightweight** — Pure browser, no installation required
+- **Real-time Performance** — ~23+ FPS
 
-> Requires a device with a camera and a modern browser (Chrome, Edge, Safari 16+, Firefox).
+## Quick Start
 
----
+```bash
+# Clone the repo
+git clone https://github.com/3h0ll7/hologlow-hands.git
+cd hologlow-hands
 
-## 🎮 Effect Modes
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+Open your browser and allow camera access. That's it!
+
+## Effect Modes
 
 | Mode | Icon | Description |
 |------|------|-------------|
@@ -51,24 +63,19 @@ HoloGlow Hands is a browser-based augmented reality experience that uses your we
 - **One hand:** Effects radiate from your hand center and fingertips
 - **Two hands:** Effects bridge between both hands — prismatic beams connect matching fingers, energy arcs span the gap, and holographic structures form at the midpoint
 
----
-
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Technology | Purpose |
-|-----------|---------|
-| **React 18** | UI framework |
-| **TypeScript** | Type-safe development |
-| **Vite** | Build tool & dev server |
-| **Tailwind CSS** | Utility-first styling |
-| **shadcn/ui** | UI component library |
-| **MediaPipe Tasks Vision** | AI hand landmark detection (21 points per hand) |
-| **HTML5 Canvas API** | Real-time 2D effect rendering |
-| **Lovable** | Development platform & deployment |
+|---|---|
+| MediaPipe Hands | Hand landmark detection |
+| TypeScript | Type-safe development |
+| React 18 | UI framework |
+| Vite | Build tool |
+| Tailwind CSS | Styling |
+| shadcn/ui | UI component library |
+| Canvas API | Glow rendering |
 
----
-
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -92,66 +99,7 @@ HoloGlow Hands is a browser-based augmented reality experience that uses your we
 └─────────────────────────────────────────────┘
 ```
 
----
-
-## 📁 Project Structure
-
-```
-src/
-├── pages/
-│   └── Index.tsx              # Main page with start screen & camera view
-├── components/
-│   ├── StartScreen.tsx        # Animated splash with ACTIVATE button
-│   ├── HoloCanvas.tsx         # Multi-layer canvas (video + skeleton + effects)
-│   └── HUD.tsx                # Heads-up display (stats, mode buttons)
-├── hooks/
-│   ├── useHandTracking.ts     # MediaPipe init, camera setup, detection loop
-│   └── useParticles.ts        # Particle pool management
-├── lib/
-│   ├── effects/
-│   │   ├── prismEffect.ts     # ⬡ Prismatic beams & hexagonal prisms
-│   │   ├── hexGridEffect.ts   # ⎔ Animated hex grid with wave propagation
-│   │   ├── holoRingEffect.ts  # ◎ Concentric rings with orbiting markers
-│   │   ├── matrixEffect.ts    # ▦ Proximity-reactive hex grid
-│   │   ├── energyEffect.ts    # ⚡ Lightning arcs & energy core
-│   │   └── vortexEffect.ts    # 🌀 Spiral vortex with hex particles
-│   ├── drawingUtils.ts        # Shared helpers: drawHexagon, drawSkeleton
-│   └── constants.ts           # Hand connections, fingertip indices, config
-```
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js 18+
-- npm or yarn
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/3h0ll7/hologlow-hands.git
-cd hologlow-hands
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-```
-
-Open `https://localhost:5173` in your browser (HTTPS required for camera access).
-
-### Build for Production
-
-```bash
-npm run build
-```
-
----
-
-## 🤝 How Hand Tracking Works
+## How Hand Tracking Works
 
 The app uses **MediaPipe Hand Landmarker** to detect 21 key points on each hand:
 
@@ -174,50 +122,89 @@ The app uses **MediaPipe Hand Landmarker** to detect 21 key points on each hand:
 - Detection runs at video frame rate with GPU acceleration
 - Supports up to 2 hands simultaneously
 
----
+## Project Structure
 
-## 🗺️ Roadmap
+```
+src/
+├── pages/
+│   └── Index.tsx              # Main page with start screen & camera view
+├── components/
+│   ├── StartScreen.tsx        # Animated splash with ACTIVATE button
+│   ├── HoloCanvas.tsx         # Multi-layer canvas (video + skeleton + effects)
+│   └── HUD.tsx                # Heads-up display (stats, mode buttons)
+├── hooks/
+│   ├── useHandTracking.ts     # MediaPipe init, camera setup, detection loop
+│   └── useParticles.ts        # Particle pool management
+├── lib/
+│   ├── effects/
+│   │   ├── prismEffect.ts     # Prismatic beams & hexagonal prisms
+│   │   ├── hexGridEffect.ts   # Animated hex grid with wave propagation
+│   │   ├── holoRingEffect.ts  # Concentric rings with orbiting markers
+│   │   ├── matrixEffect.ts    # Proximity-reactive hex grid
+│   │   ├── energyEffect.ts    # Lightning arcs & energy core
+│   │   └── vortexEffect.ts    # Spiral vortex with hex particles
+│   ├── drawingUtils.ts        # Shared helpers: drawHexagon, drawSkeleton
+│   └── constants.ts           # Hand connections, fingertip indices, config
+```
+
+## Roadmap
 
 - [x] 6 holographic effect modes
 - [x] Real-time hand skeleton rendering
 - [x] Gesture detection (Open Palm)
 - [x] Particle system with object pooling
-- [ ] ✏️ Gesture writing — draw in the air with fingertips
-- [ ] 💎 Glassmorphism shapes — frosted glass hexagons with depth
-- [ ] 🎀 Ribbon trails — silk/neon/rainbow streamers following fingers
-- [ ] 📸 Screenshot & video recording
-- [ ] 🎵 Audio-reactive mode
-- [ ] 🤏 Advanced gestures (pinch, peace, thumbs up/down, fist)
-- [ ] 🫲🫱 Two-hand gestures (scale, rotate, portal, clap)
-- [ ] ⚙️ Settings panel (glow intensity, particle density, etc.)
-- [ ] 📖 Onboarding tutorial for new users
+- [ ] Gesture writing — draw in the air with fingertips
+- [ ] Glassmorphism shapes — frosted glass hexagons with depth
+- [ ] Ribbon trails — silk/neon/rainbow streamers following fingers
+- [ ] Screenshot & video recording
+- [ ] Audio-reactive mode
+- [ ] Advanced gestures (pinch, peace, thumbs up/down, fist)
+- [ ] Two-hand gestures (scale, rotate, portal, clap)
+- [ ] Settings panel (glow intensity, particle density, etc.)
+- [ ] Onboarding tutorial for new users
 
----
+## Screenshots
 
-## 🧑‍💻 Author
+> Add your screenshots or GIFs here
+
+## Contributing
+
+Contributions are what make the open source community amazing! See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started.
+
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## Star History
+
+<a href="https://star-history.com/#3h0ll7/hologlow-hands&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=3h0ll7/hologlow-hands&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=3h0ll7/hologlow-hands&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=3h0ll7/hologlow-hands&type=Date" />
+  </picture>
+</a>
+
+## Support
+
+If you find HoloGlow Hands useful, please consider giving it a **star** — it helps others discover the project!
+
+## License
+
+Distributed under the MIT License. See `LICENSE` for more information.
+
+## Contact
 
 **Hassan Salman** — [@3h0ll7](https://github.com/3h0ll7)
 
-ICU Nurse 🏥 × AI Developer 🤖 — Building at the intersection of healthcare and technology.
+ICU Nurse × AI Developer — Building at the intersection of healthcare and technology.
 
-**Brand:** [Digital Nurse Buddy](https://github.com/3h0ll7)
-
----
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
+Portfolio: [hassanaii.lovable.app](https://hassanaii.lovable.app)
 
 ---
 
-## 🌟 Star This Repo!
-
-If you found this project interesting or useful, please give it a ⭐ on GitHub — it helps others discover it!
-
----
-
-<p align="center">
-  Built with 🖐️ and ✨ by <a href="https://github.com/3h0ll7">Hassan Salman</a>
-  <br/>
-  <a href="https://hologlowhands.lovable.app/">🚀 Try the Live Demo</a>
-</p>
+<div align="center">
+  Made with love in Najaf, Iraq
+</div>
